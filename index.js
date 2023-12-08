@@ -3,14 +3,17 @@ import fs from 'fs';
 import path from 'path';
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const path = require('path');
+
 
 /*
 시나리오 1 : Bigquery 연결 실패
 시나리오 2 : coingecko API 연결 실패
-시나리오 3 : 
-
+시나리오 3 : MongoDB 연결 실패
 */
-const mongoUrl = 'your-mongodb-connection-string';
+
+const mongoUrl = 'mongodb://localhost:27017/your-db-name';
 const dbName = 'your-db-name';
 const collectionName = 'users';
 
@@ -36,6 +39,14 @@ async function processDataAndSave(date){
   }
 
   try {
+    await saveRowsToCSV(rows, date);
+    console.log('CSV file saved successfully.');
+  } catch (err) {
+    console.error('Error saving CSV file:', err);
+    throw new Error(`saveRowsToCSV failed for date: ${date}`); // 또는 다른 적절한 에러 처리
+  }
+
+  try {
     ethPrice = await getEthereumPriceOnDate(date);
   } catch (error) {
     console.error(`Error fetching Ethereum price for date: ${date}`, error);
@@ -48,7 +59,26 @@ async function processDataAndSave(date){
     console.error('Error:', err);
     throw new Error(`updateSpendGasUSDTInMongoDB failed for date: ${date}`);
   }
-  
+}
+
+async function saveRowsToCSV(rows, date) {
+  // 파일 경로 설정. 'gas-{date}.csv' 형식으로 파일명을 생성합니다.
+  const filePath = path.join(__dirname, `gas-${date}.csv`);
+
+  // CSV Writer 설정
+  const csvWriter = createCsvWriter({
+    path: filePath,
+    header: Object.keys(rows[0]).map(key => ({ id: key, title: key.toUpperCase() }))
+  });
+
+  try {
+    // CSV 파일에 데이터 작성
+    await csvWriter.writeRecords(rows);
+    console.log(`Data saved to ${filePath}`);
+  } catch (err) {
+    console.error('Error writing to CSV:', err);
+    throw err;
+  }
 }
 
 async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, rows, ethPrice) {
