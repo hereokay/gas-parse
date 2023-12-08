@@ -1,10 +1,9 @@
-import { BigQuery } from '@google-cloud/bigquery';
-import fs from 'fs';
-import path from 'path';
+const { BigQuery } = require('@google-cloud/bigquery');
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const path = require('path');
+const { createObjectCsvWriter } = require('csv-writer');
 
 
 /*
@@ -61,23 +60,19 @@ async function processDataAndSave(date){
   }
 }
 
-async function saveRowsToCSV(rows, date) {
-  // 파일 경로 설정. 'gas-{date}.csv' 형식으로 파일명을 생성합니다.
-  const filePath = path.join(__dirname, `gas-${date}.csv`);
 
-  // CSV Writer 설정
-  const csvWriter = createCsvWriter({
-    path: filePath,
-    header: Object.keys(rows[0]).map(key => ({ id: key, title: key.toUpperCase() }))
+async function saveRowsToCSV(rows, date) {
+  const csvWriter = createObjectCsvWriter({
+      path: `gas-${date}.csv`,
+      header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
   });
 
   try {
-    // CSV 파일에 데이터 작성
-    await csvWriter.writeRecords(rows);
-    console.log(`Data saved to ${filePath}`);
+      await csvWriter.writeRecords(rows);
+      console.log(`Data saved to gas-${date}.csv`);
   } catch (err) {
-    console.error('Error writing to CSV:', err);
-    throw err;
+      console.error('Error writing to CSV:', err);
+      throw err;
   }
 }
 
