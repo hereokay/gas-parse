@@ -12,7 +12,7 @@ const { createObjectCsvWriter } = require('csv-writer');
 시나리오 3 : MongoDB 연결 실패
 */
 
-const mongoUrl = 'mongodb://localhost:27017/your-db-name';
+const mongoUrl = process.env.MONGO_URL || 'mongodb://localhost:27017/your-db-name';
 const dbName = 'your-db-name';
 const collectionName = 'users';
 
