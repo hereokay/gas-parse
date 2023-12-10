@@ -26,10 +26,19 @@ function convertDateFormat(date) {
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
+function getCurrentUtcTime() {
+  const now = new Date();
+  return now.toISOString();
+}
+
+function logWithUtcTime(message) {
+  const utcTime = getCurrentUtcTime();
+  console.log(`[${utcTime}] ${message}`);
+}
 
 
 async function processDataAndSave(date){
-  console.log("processDataAndSave called")
+  logWithUtcTime("processDataAndSave called")
   let rows;
   let ethPrice;
 
@@ -42,7 +51,7 @@ async function processDataAndSave(date){
 
   try {
     ethPrice = await getEthereumPriceOnDate(date);
-    console.log(`ethPrice : ${ethPrice}`);
+    logWithUtcTime(`ethPrice : ${ethPrice}`);
   } catch (error) {
     console.error(`Error fetching Ethereum price for date: ${date}`, error);
     throw new Error(`getEthereumPriceOnDate failed for date: ${date}`);
@@ -50,7 +59,7 @@ async function processDataAndSave(date){
 
   try {
     await saveRowsToCSV(rows, ethPrice,date);
-    console.log('CSV file saved successfully.');
+    logWithUtcTime('CSV file saved successfully.');
   } catch (err) {
     console.error('Error saving CSV file:', err);
     throw new Error(`saveRowsToCSV failed for date: ${date}`); // 또는 다른 적절한 에러 처리
@@ -66,7 +75,7 @@ async function processDataAndSave(date){
 
 
 async function saveRowsToCSV(rows, ethPrice, date) {
-  console.log("saveRowsToCSV called")
+  logWithUtcTime("saveRowsToCSV called")
   // 각 행에 spendGasUSDT 값을 추가
   const modifiedRows = rows.map(row => ({
     ...row,
@@ -84,7 +93,7 @@ async function saveRowsToCSV(rows, ethPrice, date) {
 
   try {
     await csvWriter.writeRecords(modifiedRows); // 수정된 rows 배열 사용
-    console.log(`Data saved to gas-${date}.csv`);
+    logWithUtcTime(`Data saved to gas-${date}.csv`);
   } catch (err) {
     console.error('Error writing to CSV:', err);
     throw err;
@@ -94,13 +103,13 @@ async function saveRowsToCSV(rows, ethPrice, date) {
 
 
 async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, date) {
-  console.log("updateSpendGasUSDTInMongoDB called")
+  logWithUtcTime("updateSpendGasUSDTInMongoDB called")
   const client = new MongoClient(mongoUrl);
   const filePath = `gas-${date}.csv`;
 
   try {
     await client.connect();
-    console.log("Connected successfully to MongoDB");
+    logWithUtcTime("Connected successfully to MongoDB");
 
     const db = client.db(dbName);
     const collection = db.collection(collectionName);
@@ -111,7 +120,7 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, dat
       .pipe(csv())
       .on('data', (row) => rows.push(row))
       .on('end', async () => {
-        console.log('CSV file successfully processed');
+        logWithUtcTime('CSV file successfully processed');
 
         for (const row of rows) {
           const _id = row._id;
@@ -123,7 +132,7 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, dat
             { upsert: true }
           );
     
-          console.log(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount} spendGasUSDT ${spendGasUSDT}`);
+          logWithUtcTime(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount} spendGasUSDT ${spendGasUSDT}`);
         }
 
         await client.close();
@@ -136,7 +145,7 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, dat
 
 
 async function getEthereumPriceOnDate(date) {
-  console.log("getEthereumPriceOnDate called")
+  logWithUtcTime("getEthereumPriceOnDate called")
   try {
     const url = `https://api.coingecko.com/api/v3/coins/ethereum/history?date=${convertDateFormat(date)}`;
     const response = await axios.get(url);
@@ -152,7 +161,7 @@ async function getEthereumPriceOnDate(date) {
 
 
 async function fetchQueryData(date) {
-  console.log("fetchQueryData called")
+  logWithUtcTime("fetchQueryData called")
 
   const bigqueryClient = new BigQuery();
   const query = `
@@ -186,7 +195,7 @@ if (!date) {
 
 
 if (date !== null) {
-  console.log('call processDataAndSave');
+  logWithUtcTime('call processDataAndSave');
   processDataAndSave(date);
 } else {
   console.error('Error: Date parameter is required.');
