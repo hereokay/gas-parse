@@ -123,7 +123,7 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, dat
             { upsert: true }
           );
     
-          console.log(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount}`);
+          console.log(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount} spendGasUSDT ${spendGasUSDT}`);
         }
 
         await client.close();
