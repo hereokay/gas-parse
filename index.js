@@ -137,6 +137,7 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, dat
 
         await client.close();
       });
+    logWithUtcTime("updateSpendGasUSDTInMongoDB done");
   } catch (error) {
     console.error('Error:', error);
     await client.close();
