@@ -4,6 +4,8 @@ const path = require('path');
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
 const { createObjectCsvWriter } = require('csv-writer');
+const csv = require('csv-parser');
+
 
 
 /*
@@ -27,6 +29,7 @@ function convertDateFormat(date) {
 
 
 async function processDataAndSave(date){
+  console.log("processDataAndSave called")
   let rows;
   let ethPrice;
 
@@ -38,7 +41,15 @@ async function processDataAndSave(date){
   }
 
   try {
-    await saveRowsToCSV(rows, date);
+    ethPrice = await getEthereumPriceOnDate(date);
+    console.log(`ethPrice : ${ethPrice}`);
+  } catch (error) {
+    console.error(`Error fetching Ethereum price for date: ${date}`, error);
+    throw new Error(`getEthereumPriceOnDate failed for date: ${date}`);
+  }
+
+  try {
+    await saveRowsToCSV(rows, ethPrice,date);
     console.log('CSV file saved successfully.');
   } catch (err) {
     console.error('Error saving CSV file:', err);
@@ -46,14 +57,7 @@ async function processDataAndSave(date){
   }
 
   try {
-    ethPrice = await getEthereumPriceOnDate(date);
-  } catch (error) {
-    console.error(`Error fetching Ethereum price for date: ${date}`, error);
-    throw new Error(`getEthereumPriceOnDate failed for date: ${date}`);
-  }
-
-  try {
-    await updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, rows, ethPrice);
+    await updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, date);
   } catch (err) {
     console.error('Error:', err);
     throw new Error(`updateSpendGasUSDTInMongoDB failed for date: ${date}`);
@@ -61,23 +65,38 @@ async function processDataAndSave(date){
 }
 
 
-async function saveRowsToCSV(rows, date) {
+async function saveRowsToCSV(rows, ethPrice, date) {
+  console.log("saveRowsToCSV called")
+  // 각 행에 spendGasUSDT 값을 추가
+  const modifiedRows = rows.map(row => ({
+    ...row,
+    spendGasUSDT: row.gasCost * ethPrice
+  }));
+
   const csvWriter = createObjectCsvWriter({
-      path: `gas-${date}.csv`,
-      header: Object.keys(rows[0]).map(key => ({ id: key, title: key }))
+    path: `gas-${date}.csv`,
+    header: [
+      { id: 'gasCost', title: 'gasCost' },
+      { id: '_id', title: '_id' },
+      { id: 'spendGasUSDT', title: 'spendGasUSDT' }
+    ]
   });
 
   try {
-      await csvWriter.writeRecords(rows);
-      console.log(`Data saved to gas-${date}.csv`);
+    await csvWriter.writeRecords(modifiedRows); // 수정된 rows 배열 사용
+    console.log(`Data saved to gas-${date}.csv`);
   } catch (err) {
-      console.error('Error writing to CSV:', err);
-      throw err;
+    console.error('Error writing to CSV:', err);
+    throw err;
   }
 }
 
-async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, rows, ethPrice) {
+
+
+async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, date) {
+  console.log("updateSpendGasUSDTInMongoDB called")
   const client = new MongoClient(mongoUrl);
+  const filePath = `gas-${date}.csv`;
 
   try {
     await client.connect();
@@ -86,27 +105,38 @@ async function updateSpendGasUSDTInMongoDB(mongoUrl, dbName, collectionName, row
     const db = client.db(dbName);
     const collection = db.collection(collectionName);
 
-    for (const row of rows) {
-      const _id = row._id;
-      const gasCost = row.gasCost;
-      const spendGasUSDT = gasCost * ethPrice;
+    const rows = [];
 
-      const updateResult = await collection.updateOne(
-        { _id: _id },
-        { $inc: { spendGasUSDT: spendGasUSDT } },
-        { upsert: true }
-      );
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (row) => rows.push(row))
+      .on('end', async () => {
+        console.log('CSV file successfully processed');
 
-      console.log(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount}`);
-    }
+        for (const row of rows) {
+          const _id = row._id;
+          const spendGasUSDT = parseFloat(row.spendGasUSDT);
+
+          const updateResult = await collection.updateOne(
+            { _id: _id },
+            { $inc: { spendGasUSDT: spendGasUSDT } },
+            { upsert: true }
+          );
+    
+          console.log(`_id ${_id}: Document updated: ${updateResult.modifiedCount}, Document inserted: ${updateResult.upsertedCount}`);
+        }
+
+        await client.close();
+      });
   } catch (error) {
     console.error('Error:', error);
-  } finally {
     await client.close();
   }
 }
 
+
 async function getEthereumPriceOnDate(date) {
+  console.log("getEthereumPriceOnDate called")
   try {
     const url = `https://api.coingecko.com/api/v3/coins/ethereum/history?date=${convertDateFormat(date)}`;
     const response = await axios.get(url);
@@ -119,9 +149,12 @@ async function getEthereumPriceOnDate(date) {
 }
 
 
-const bigqueryClient = new BigQuery();
+
 
 async function fetchQueryData(date) {
+  console.log("fetchQueryData called")
+
+  const bigqueryClient = new BigQuery();
   const query = `
     SELECT
       SUM(transactions.receipt_gas_used * (transactions.gas_price / 1000000000000000000)) as gasCost,
