@@ -143,10 +143,13 @@ async function fetchQueryData(date) {
   return rows;
 }
 
+// index.js
+const date = process.env.DATE;
 
-const args = process.argv.slice(2);
-const dateArg = args.find(arg => arg.startsWith('--date='));
-const date = dateArg ? dateArg.split('=')[1] : null;
+if (!date) {
+    console.error("ERROR: DATE 환경 변수가 설정되지 않았습니다.");
+    process.exit(1); // 비정상 종료
+}
 
 
 if (date !== null) {
